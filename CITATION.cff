@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Movaffagh"
+  given-names: "Ehsan"
+- family-names: "Ghazanfari"
+  given-names: "Seyyed Alireza"
+title: "reviewer-recommender"
+version: 1.0.0
+doi: 10.5281/zenodo.10568908
+date-released: 2024-01-25
+url: "https://github.com/Ehsan200/reviewer-recommender"

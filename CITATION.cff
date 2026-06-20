@@ -5,8 +5,9 @@ authors:
       given-names: 'Abid Al'
 title: 'Enhanced GitHub Reviewer Recommender System with Advanced Evaluation'
 version: 2.0.0
-date-released: 2025-09-08
+date-released: 2026-06-21
 url: 'https://github.com/Abidstic/Reviewer-Recommender-Analysis'
+repository-code: 'https://github.com/Abidstic/Reviewer-Recommender-Analysis'
 abstract: 'An enhanced GitHub reviewer recommendation system featuring interactive interface, advanced evaluation metrics (Precision@K, MRR, MAP, DCG), debugging tools, and thesis-ready output formats. Built upon the original reviewer-recommender framework with substantial improvements and new capabilities.'
 keywords:
     - 'code review'

@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/1052296465.svg)](https://doi.org/10.5281/zenodo.20777989)
 # GitHub Reviewer Recommender System
 
 An advanced reviewer recommendation system that analyzes GitHub repository data to suggest appropriate code reviewers using multiple machine learning algorithms. This system provides comprehensive evaluation metrics suitable for academic research and thesis work.

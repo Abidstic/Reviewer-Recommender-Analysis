@@ -77,6 +77,10 @@ class DataConverter:
                     )
                 )
 
+                all_converted_developers.append(
+                    Developer(username=raw_comment['user']['login'])
+                )
+
             raw_pr_files = self._data_loader.read_list_raw_data_from_json_files(f'pull/{raw_pr["number"]}/files')
 
             current_pr_files = []
@@ -112,6 +116,10 @@ class DataConverter:
                         pull_number=raw_pr['number'],
                         date=raw_review['submitted_at'],
                     )
+                )
+
+                all_converted_developers.append(
+                    Developer(username=raw_review['user']['login'])
                 )
 
                 if raw_review['commit_id'] is None:

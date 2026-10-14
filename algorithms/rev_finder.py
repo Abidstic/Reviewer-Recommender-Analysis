@@ -19,7 +19,6 @@ class RevFinder(BaseSimulator):
     def calc_candidates_with_methodologies(self, pr: PullRequest):
 
         candidates = {_.__name__: defaultdict(float) for _ in METHODOLOGIES}
-        scores = {_.__name__: 0 for _ in METHODOLOGIES}
 
         new_files = pr.file_paths
 
@@ -36,6 +35,7 @@ class RevFinder(BaseSimulator):
             if len(review_files) == 0 or len(new_files) == 0:
                 continue
 
+            scores = {_.__name__: 0 for _ in METHODOLOGIES}
             for methodology in METHODOLOGIES:
                 methodology_name = methodology.__name__
                 for new_file in new_files:

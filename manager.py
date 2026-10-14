@@ -32,12 +32,13 @@ def validate(args):
 
 def run_algorithm(algorithm, args):
     validate(args)
-    info_logger.info(f'algorithm {args.algorithm} for project={args.r_owner[0]}/{args.r_name[0]} started')
+    info_logger.info(f'algorithm {args.command} for project={args.r_owner[0]}/{args.r_name[0]} started')
     manager = ManagerFactory(
         DATA_BASE_DIR,
         f'{args.r_owner[0]}-{args.r_name[0]}',
     ).get_manager()
-    algorithm(manager, from_cache=not args.no_cache)
+    result = algorithm(manager, from_cache=not args.no_cache).simulate()
+    print(f'{args.command} completed: generated recommendations for {len(result)} PRs')
 
 
 def run_evaluation(args):

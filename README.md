@@ -48,8 +48,8 @@ source ~/.bashrc
 ### 3. Clone and Install Reviewer Recommender
 
 ```bash
-git clone [your-repository-url]
-cd reviewer-recommender
+git clone https://github.com/Abidstic/Reviewer-Recommender-Analysis
+cd Reviewer-Recommender-Analysis
 pip install -r requirements.txt
 ```
 
@@ -257,38 +257,22 @@ This reviewer recommender system provides:
 
 This system is designed for researchers, students, and practitioners who need reliable, measurable, and comparable reviewer recommendation algorithms with detailed evaluation capabilities.
 
-## Attribution and Modifications
+## Citation
 
-This project builds upon the original work by [Ehsan Movaffagh](https://github.com/Ehsan200) and [Seyyed Alireza Ghazanfari](https://github.com/seyyedAlirezaGhazanfari), with substantial modifications and enhancements including:
-
-- Interactive user interface with menu-driven repository selection
-- Advanced evaluation system with 15+ comprehensive metrics
-- Data structure debugging and validation tools
-- Enhanced error handling and performance optimization
-- Thesis-ready output with exportable results in JSON/CSV formats
-- Algorithm-level debugging capabilities
-- Comprehensive documentation and user guides
-
-### **Citation**
-
-If you use this enhanced version in your research, please cite:
+If you use this system in your research, please cite:
 
 ```bibtex
-@software{enhanced_github_reviewer_recommender,
-  title={Enhanced GitHub Reviewer Recommender System with Advanced Evaluation},
+@software{mahmud_github_reviewer_recommender,
+  title={Reviewer Recommender Analysis: A GitHub Reviewer Recommendation System with Advanced Evaluation},
   author={Mahmud, Abid Al},
-  year={2025},
-  note={Based on original work by Movaffagh, E. and Ghazanfari, S.A.},
-  url={[your-repository-url]}
+  year={2026},
+  doi={10.5281/zenodo.20777989},
+  url={https://github.com/Abidstic/Reviewer-Recommender-Analysis}
 }
 ```
 
-For the original algorithms, please also cite the foundational work:
-```bibtex
-@software{original_github_reviewer_recommender,
-  title={GitHub Reviewer Recommender System},
-  author={Movaffagh, Ehsan and Ghazanfari, Seyyed Alireza},
-  year={2025},
-  url={[original-repository-url]}
-}
-```
+The four recommendation algorithms implement the following published approaches. If you use them, please also cite the original papers:
+
+- **RevFinder** — P. Thongtanunam, C. Tantithamthavorn, R. G. Kula, N. Yoshida, H. Iida, and K. Matsumoto, "Who Should Review My Code? A File Location-Based Code-Reviewer Recommendation Approach for Modern Code Review," SANER 2015.
+- **cHRev** — M. B. Zanjani, H. Kagdi, and C. Bird, "Automatically Recommending Peer Reviewers in Modern Code Review," IEEE Transactions on Software Engineering, 2016.
+- **TurnoverRec & Sofia** — E. Mirsaeedi and P. C. Rigby, "Mitigating Turnover with Code Review Recommendation: Balancing Expertise, Workload, and Knowledge Distribution," ICSE 2020.

@@ -1,5 +1,4 @@
-from copy import deepcopy
-from typing import Dict, Union
+from typing import Dict
 
 from utils import Cache
 from utils.logger import info_logger
@@ -9,57 +8,42 @@ from models import Developer, PullRequest
 
 class ChRev(BaseSimulator):
 
-    def _calc_xFactor(
-            self,
-            developer: Developer,
-            pr: PullRequest,
-            prev_pr: Union[PullRequest, None],
-    ) -> Dict[str, float]:
-        file_scores = {}
-        for file in self._manager.files_list:
-            if file.filepath not in pr.file_paths or file.filepath not in self._manager.comments.keys():
+    @classmethod
+    def _day(cls, date_str):
+        return cls._parse_date_string(date_str).date()
+
+    def _calc_xFactor(self, developer: Developer, pr: PullRequest) -> float:
+        total = 0.0
+        for filepath in pr.file_paths:
+            file_comments = [
+                c for c in self._manager.comments.get(filepath, [])
+                if c.date < pr.date
+            ]
+            if not file_comments:
                 continue
-            score = 0
-            all_file_comments = self._manager.comments[file.filepath]
-            developer_comments = [
-                _ for _ in all_file_comments if
-                _.reviewer_username == developer.username and self.obj_time_is_between_prs(_, prev_pr=prev_pr, pr=pr)
+            dev_comments = [
+                c for c in file_comments
+                if c.reviewer_username == developer.username
             ]
-            score += len(developer_comments) / len(all_file_comments)
-
-            all_file_contributions = self._manager.contributions[file.filepath]
-            all_developer_contributions = [
-                _ for _ in all_file_contributions if
-                _.username == developer.username and self.obj_time_is_between_prs(_, prev_pr=prev_pr, pr=pr)
-            ]
-
-            if len(all_developer_contributions) == 0 or len(all_file_contributions) == 0:
+            if not dev_comments:
                 continue
 
-            total_most_recent_comment_date = self.get_max_date(all_file_contributions)
-            developer_most_recent_comment_date = self.get_max_date(all_developer_contributions)
+            term1 = len(dev_comments) / len(file_comments)
 
-            total_diff = self.calc_diff_date(
-                self.get_min_date(all_file_contributions),
-                total_most_recent_comment_date,
-            )
-            developer_diff = self.calc_diff_date(
-                self.get_min_date(all_developer_contributions),
-                developer_most_recent_comment_date,
-            )
+            dev_days = {self._day(c.date) for c in dev_comments}
+            file_days = {self._day(c.date) for c in file_comments}
+            term2 = len(dev_days) / len(file_days)
 
-            score += (developer_diff / total_diff) if total_diff else 1
+            dev_last = max(c.date for c in dev_comments)
+            file_last = max(c.date for c in file_comments)
+            # PAPER Eq. 3 (Zanjani, Kagdi & Bird, TSE 2016): recency term
+            # 1 / (|Tf - Tf'| + 1), in days. Equals 1.0 when the developer
+            # made the most recent comment on the file.
+            gap = self.calc_diff_date(dev_last, file_last)
+            term3 = 1.0 / (gap + 1)
 
-            diff_date = self.calc_diff_date(
-                total_most_recent_comment_date,
-                developer_most_recent_comment_date,
-            )
-
-            score += 1 / (diff_date + 1)
-
-            file_scores[file.filepath] = score
-
-        return file_scores
+            total += term1 + term2 + term3
+        return total
 
     def simulate(self):
         info_logger.info("Simulating ChRev...")
@@ -69,26 +53,15 @@ class ChRev(BaseSimulator):
 
         # {[pr_number]: { [dev_username]: score }}
         result: Dict[int, Dict[str, float]] = {}
-        # {[username]: { [filepath]: score }}
-        scores: Dict[str, Dict[str, float]] = {}
 
         pr_len = len(self._manager.pull_requests_list)
-        prev_pr = None
         for index, pr in enumerate(self._manager.pull_requests_list):
             info_logger.info(f'Calculating candidates: {index + 1}/{pr_len}')
             result[pr.number] = {}
             for developer in self._manager.developers_list:
-                dev_scores = self._calc_xFactor(developer=developer, pr=pr, prev_pr=prev_pr)
-                if developer.username not in scores:
-                    scores[developer.username] = deepcopy(dev_scores)
-                else:
-                    for filepath, score in dev_scores.items():
-                        if filepath not in scores[developer.username]:
-                            scores[developer.username][filepath] = score
-                        else:
-                            scores[developer.username][filepath] += score
-                result[pr.number][developer.username] = sum(list(scores[developer.username].values()))
-            prev_pr = pr
+                score = self._calc_xFactor(developer=developer, pr=pr)
+                if score > 0:
+                    result[pr.number][developer.username] = score
 
         Cache.store(self._cache_filename, result, chunk=True)
         info_logger.info("ChRev simulation stored in cache")

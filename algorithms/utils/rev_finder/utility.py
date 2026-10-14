@@ -17,7 +17,8 @@ class ProjectFilesSimilarity:
 
     @staticmethod
     def _get_file_path_similarity(f1, f2, methodology) -> float:
-        return methodology(f1, f2) / max(len(f1), len(f2))
+        denom = max(len(f1.split('/')), len(f2.split('/')))
+        return (methodology(f1, f2) / denom) if denom else 0.0
 
     @property
     def _cache_filepath(self):

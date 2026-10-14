@@ -146,6 +146,7 @@ class AdvancedEvaluation:
         precision_at_k = {k: [] for k in k_values}
         recall_at_k = {k: [] for k in k_values}
         f1_at_k = {k: [] for k in k_values}
+        ap_at_k = {k: [] for k in k_values}
         
         for pr_num, actual_reviewers in self.ground_truth.items():
             if pr_num not in algo_result:
@@ -219,6 +220,22 @@ class AdvancedEvaluation:
                 ap = 0.0
             average_precisions.append(ap)
             per_pr_metrics['ap_scores'].append(ap)
+            
+            # ============================================
+            # MAP@k  (paper formula)
+            # AP@k(p) = 1/|A_p| * sum_{i=1..k} Precision@i(p) * rel_p(i)
+            # |A_p| = ALL actual reviewers of PR p; list truncated at k.
+            # ============================================
+            for k in k_values:
+                hits_so_far = 0
+                ap_k_sum = 0.0
+                for i, (rec_reviewer, _) in enumerate(sorted_recs[:k], 1):
+                    if rec_reviewer in actual_reviewers:
+                        hits_so_far += 1
+                        ap_k_sum += hits_so_far / i  # Precision@i * rel(i)
+                ap_k = ap_k_sum / len(actual_reviewers)
+                ap_at_k[k].append(ap_k)
+                per_pr_metrics.setdefault(f'ap_at_{k}', []).append(ap_k)
             
             # ============================================
             # DCG and NDCG
@@ -309,6 +326,8 @@ class AdvancedEvaluation:
             # Ranking metrics
             metrics['ranking_metrics']['mrr'] = np.mean(reciprocal_ranks)
             metrics['ranking_metrics']['map'] = np.mean(average_precisions)
+            for k in k_values:
+                metrics['ranking_metrics'][f'map_at_{k}'] = np.mean(ap_at_k[k])
             metrics['ranking_metrics']['avg_dcg'] = np.mean(dcg_scores)
             metrics['ranking_metrics']['avg_ndcg'] = np.mean(ndcg_scores)  # NEW!
             
@@ -363,6 +382,9 @@ class AdvancedEvaluation:
                 print(f"    MRR: {ranking['mrr']:.4f}")
             if 'map' in ranking:
                 print(f"    MAP: {ranking['map']:.4f}")
+            for k in [1, 3, 5, 10]:
+                if f'map_at_{k}' in ranking:
+                    print(f"    MAP@{k}: {ranking[f'map_at_{k}']:.4f}")
             if 'avg_dcg' in ranking:
                 print(f"    Avg DCG@10: {ranking['avg_dcg']:.4f}")
             if 'avg_ndcg' in ranking:
@@ -455,6 +477,7 @@ class AdvancedEvaluation:
         ranking_metrics = [
             ('MRR', 'ranking_metrics', 'mrr'),
             ('MAP', 'ranking_metrics', 'map'),
+            ('MAP@3', 'ranking_metrics', 'map_at_3'),
             ('Precision@5', 'precision_metrics', 'precision_at_5'),
             ('Recall@5', 'recall_metrics', 'recall_at_5'),
             ('F1@5', 'f1_metrics', 'f1_at_5'),

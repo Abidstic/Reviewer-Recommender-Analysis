@@ -10,7 +10,10 @@ from .turnoverRec import TurnoverRec
 
 
 class Sofia(BaseSimulator):
-    _d = 2
+    # PAPER Eq. 13 (Mirsaeedi & Rigby 2020): k = 2 is the smallest number of
+    # knowledgeable developers at which knowledge is distributed. A file with
+    # <= k knowledgeable developers is abandoned (0) or hoarded (1).
+    _k = 2
 
     @cached_property
     def _chRev_simulator(self):
@@ -20,25 +23,25 @@ class Sofia(BaseSimulator):
     def _turnoverRec_simulator(self):
         return TurnoverRec(self._manager, from_cache=self._from_cache)
 
-    def _calc_knowledgeable(self, pr: PullRequest):
-        result: Dict[str, Set[str]] = {}
-        for filepath in pr.file_paths:
-            if filepath not in self._manager.contributions.keys():
-                continue
+    def _calc_knowledgeable(self, filepath: str, pr: PullRequest) -> Set[str]:
+        # Knowledgeable(f): developers who reviewed or modified f before the PR.
+        reviewers = {
+            rf.reviewer_username for rf in self._manager.review_files_list
+            if rf.filepath == filepath and rf.date < pr.date
+        }
+        contributors = {
+            c.username for c in self._manager.contributions.get(filepath, [])
+            if c.date < pr.date
+        }
+        return reviewers | contributors
 
-            files_reviewer_username = [
-                _.reviewer_username for _ in self._manager.review_files_list if
-                filepath == _.filepath and pr.date > _.date
-            ]
-
-            contributors = [
-                _.username for _ in self._manager.contributions[filepath] if
-                _.filename == filepath and pr.date > _.date
-            ]
-
-            result[filepath] = {*files_reviewer_username, *contributors}
-
-        return result
+    def _pr_at_risk(self, pr: PullRequest) -> bool:
+        # PAPER Eq. 13: route the whole review to TurnoverRec when ANY file
+        # under review has <= k knowledgeable developers; otherwise cHRev.
+        return any(
+            len(self._calc_knowledgeable(filepath, pr)) <= self._k
+            for filepath in pr.file_paths
+        )
 
     def simulate(self):
         info_logger.info("Simulating Sofia...")
@@ -55,14 +58,10 @@ class Sofia(BaseSimulator):
         pr_len = len(self._manager.pull_requests_list)
         for index, pr in enumerate(self._manager.pull_requests_list):
             info_logger.info(f'Calculating candidates: {index + 1}/{pr_len}')
-            result[pr.number] = {}
-            knowledgeable = self._calc_knowledgeable(pr=pr)
-            knowledgeable_list = list(knowledgeable.values())
-            for developer in self._manager.developers_list:
-                if all(len(_) <= self._d for _ in knowledgeable_list):
-                    result[pr.number][developer.username] = chRev_result[pr.number][developer.username]
-                else:
-                    result[pr.number][developer.username] = turnoverRec_result[pr.number][developer.username]
+            if self._pr_at_risk(pr):
+                result[pr.number] = dict(turnoverRec_result.get(pr.number, {}))
+            else:
+                result[pr.number] = dict(chRev_result.get(pr.number, {}))
 
         Cache.store(self._cache_filename, result, chunk=True)
         info_logger.info("Sofia: Simulation finished")

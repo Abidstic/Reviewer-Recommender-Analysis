@@ -1,3 +1,4 @@
+from datetime import datetime
 from functools import cached_property
 from typing import Dict, List
 
@@ -46,7 +47,10 @@ class Manager:
 
     @cached_property
     def pull_requests_list(self):
-        return list(self.pull_requests.values())
+        return sorted(
+            self.pull_requests.values(),
+            key=lambda pr: datetime.fromisoformat(pr.date.replace('Z', '')),
+        )
 
     @cached_property
     def reviews_list(self):

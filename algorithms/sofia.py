@@ -1,8 +1,6 @@
 from functools import cached_property
-from typing import Dict, Set
+from typing import Dict
 
-from models import PullRequest
-from utils import Cache
 from utils.logger import info_logger
 from .base_simulator import BaseSimulator
 from .chrev import ChRev
@@ -10,35 +8,29 @@ from .turnoverRec import TurnoverRec
 
 
 class Sofia(BaseSimulator):
+
     _d = 2
 
-    @cached_property
-    def _chRev_simulator(self):
-        return ChRev(self._manager, from_cache=self._from_cache)
+    def __init__(self, manager, from_cache=True, target_pr_numbers=None):
+        super().__init__(manager, from_cache, target_pr_numbers)
+        self.routing: Dict[int, str] = {}
 
     @cached_property
-    def _turnoverRec_simulator(self):
-        return TurnoverRec(self._manager, from_cache=self._from_cache)
+    def _turnoverRec(self) -> TurnoverRec:
+        return TurnoverRec(self._manager, from_cache=self._from_cache,
+                           target_pr_numbers=self._target_pr_numbers)
 
-    def _calc_knowledgeable(self, pr: PullRequest):
-        result: Dict[str, Set[str]] = {}
-        for filepath in pr.file_paths:
-            if filepath not in self._manager.contributions.keys():
-                continue
+    @cached_property
+    def _chRev(self) -> ChRev:
+        return ChRev(self._manager, from_cache=self._from_cache,
+                     target_pr_numbers=self._target_pr_numbers)
 
-            files_reviewer_username = [
-                _.reviewer_username for _ in self._manager.review_files_list if
-                filepath == _.filepath and pr.date > _.date
-            ]
-
-            contributors = [
-                _.username for _ in self._manager.contributions[filepath] if
-                _.filename == filepath and pr.date > _.date
-            ]
-
-            result[filepath] = {*files_reviewer_username, *contributors}
-
-        return result
+    def _pr_at_risk(self, pr, pr_dt) -> bool:
+        knowledge = self._turnoverRec.knowledge
+        return any(
+            len(knowledge.knowledgeable(path, pr_dt)) <= self._d
+            for path in pr.file_paths
+        )
 
     def simulate(self):
         info_logger.info("Simulating Sofia...")
@@ -46,24 +38,28 @@ class Sofia(BaseSimulator):
             info_logger.info("Sofia: Using cached result...")
             return self.cached_result
 
-        chRev_result = self._chRev_simulator.simulate()
-        turnoverRec_result = self._turnoverRec_simulator.simulate()
+        turnover_result = self._turnoverRec.simulate()
+        chrev_result = self._chRev.simulate()
 
-        # {[pr_number]: { [dev_username]: score }}
         result: Dict[int, Dict[str, float]] = {}
-
-        pr_len = len(self._manager.pull_requests_list)
-        for index, pr in enumerate(self._manager.pull_requests_list):
+        pr_len = len(self._target_prs)
+        for index, pr in enumerate(self._target_prs):
             info_logger.info(f'Calculating candidates: {index + 1}/{pr_len}')
-            result[pr.number] = {}
-            knowledgeable = self._calc_knowledgeable(pr=pr)
-            knowledgeable_list = list(knowledgeable.values())
-            for developer in self._manager.developers_list:
-                if all(len(_) <= self._d for _ in knowledgeable_list):
-                    result[pr.number][developer.username] = chRev_result[pr.number][developer.username]
-                else:
-                    result[pr.number][developer.username] = turnoverRec_result[pr.number][developer.username]
+            pr_dt = self.parse_dt(pr.date)
+            turnover = turnover_result.get(pr.number, {})
+            chrev = chrev_result.get(pr.number, {})
 
-        Cache.store(self._cache_filename, result, chunk=True)
+            if pr_dt is not None and self._pr_at_risk(pr, pr_dt):
+                if turnover:
+                    result[pr.number] = dict(turnover)
+                    self.routing[pr.number] = 'TurnoverRec'
+                else:
+                    result[pr.number] = dict(chrev)
+                    self.routing[pr.number] = 'cHRev (fallback)'
+            else:
+                result[pr.number] = dict(chrev)
+                self.routing[pr.number] = 'cHRev'
+
+        self._store_result(result)
         info_logger.info("Sofia: Simulation finished")
         return result

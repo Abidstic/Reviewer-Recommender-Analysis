@@ -11,6 +11,8 @@ __pycache__/
 # Distribution / packaging
 .Python
 evaluation_results/
+eval_targets/
+tests/
 build/
 develop-eggs/
 dist/

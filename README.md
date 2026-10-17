@@ -48,8 +48,8 @@ source ~/.bashrc
 ### 3. Clone and Install Reviewer Recommender
 
 ```bash
-git clone [your-repository-url]
-cd reviewer-recommender
+git clone https://github.com/Abidstic/Reviewer-Recommender-Analysis
+cd Reviewer-Recommender-Analysis
 pip install -r requirements.txt
 ```
 
@@ -257,38 +257,52 @@ This reviewer recommender system provides:
 
 This system is designed for researchers, students, and practitioners who need reliable, measurable, and comparable reviewer recommendation algorithms with detailed evaluation capabilities.
 
-## Attribution and Modifications
+## Algorithm Fidelity and Documented Deviations
 
-This project builds upon the original work by [Ehsan Movaffagh](https://github.com/Ehsan200) and [Seyyed Alireza Ghazanfari](https://github.com/seyyedAlirezaGhazanfari), with substantial modifications and enhancements including:
+Each algorithm follows its original paper. The implementation makes a few
+deliberate, documented choices that a thesis should disclose:
 
-- Interactive user interface with menu-driven repository selection
-- Advanced evaluation system with 15+ comprehensive metrics
-- Data structure debugging and validation tools
-- Enhanced error handling and performance optimization
-- Thesis-ready output with exportable results in JSON/CSV formats
-- Algorithm-level debugging capabilities
-- Comprehensive documentation and user guides
+- **cHRev** uses the original recency term `1/gap` (calendar days, `gap = 0 → 1`),
+  not Mirsaeedi & Rigby's re-implementation `1/(gap + 1)`. Expertise is computed
+  at the file level and falls back to the containing package, then the top-level
+  system, when no reviewer has commented at the finer level.
+- **RevFinder** fixes `LCSuff`: the longest common suffix is compared from the
+  *end* of both paths. The authors' released script compared components by index
+  from the front, which is wrong for paths of different depth. The four
+  techniques are fused with Borda count giving `M − rank + 1` points per list, and
+  a candidate absent from a list scores `0` (not `−∞`).
+- **Knowledge model** (TurnoverRec, Sofia): a developer *knows* a file once they
+  have committed to it or reviewed a PR containing it; commits/PRs touching ≥ 100
+  files ("mega" changes) are ignored.
+- **Sofia** routes a review to TurnoverRec when any file under review has ≤ 2
+  knowledgeable developers, otherwise to cHRev (paper Eq. 10, whose two cases are
+  swapped as printed; `d = 2`). When TurnoverRec yields no candidate for an
+  at-risk PR, we fall back to cHRev — this fallback is our own decision.
+- **Shared rules**: all algorithms use only events strictly before the target PR,
+  exclude the PR author and bot accounts from both recommendations and ground
+  truth, and break score ties deterministically.
 
-### **Citation**
+Known limitations (not addressed): cHRev uses inline comments only; PR file lists
+are the final set, not the first patch set; there is no merged-PR filter; commits
+with no GitHub login fall back to email addresses; and the ICSE 2020 ΔExpertise /
+ΔCoreWorkload / ΔFaR turnover simulation is not implemented.
 
-If you use this enhanced version in your research, please cite:
+## Citation
+
+If you use this system in your research, please cite:
 
 ```bibtex
-@software{enhanced_github_reviewer_recommender,
-  title={Enhanced GitHub Reviewer Recommender System with Advanced Evaluation},
+@software{mahmud_github_reviewer_recommender,
+  title={Reviewer Recommender Analysis: A GitHub Reviewer Recommendation System with Advanced Evaluation},
   author={Mahmud, Abid Al},
-  year={2025},
-  note={Based on original work by Movaffagh, E. and Ghazanfari, S.A.},
-  url={[your-repository-url]}
+  year={2026},
+  doi={10.5281/zenodo.20777989},
+  url={https://github.com/Abidstic/Reviewer-Recommender-Analysis}
 }
 ```
 
-For the original algorithms, please also cite the foundational work:
-```bibtex
-@software{original_github_reviewer_recommender,
-  title={GitHub Reviewer Recommender System},
-  author={Movaffagh, Ehsan and Ghazanfari, Seyyed Alireza},
-  year={2025},
-  url={[original-repository-url]}
-}
-```
+The four recommendation algorithms implement the following published approaches. If you use them, please also cite the original papers:
+
+- **RevFinder** — P. Thongtanunam, C. Tantithamthavorn, R. G. Kula, N. Yoshida, H. Iida, and K. Matsumoto, "Who Should Review My Code? A File Location-Based Code-Reviewer Recommendation Approach for Modern Code Review," SANER 2015.
+- **cHRev** — M. B. Zanjani, H. Kagdi, and C. Bird, "Automatically Recommending Peer Reviewers in Modern Code Review," IEEE Transactions on Software Engineering, 2016.
+- **TurnoverRec & Sofia** — E. Mirsaeedi and P. C. Rigby, "Mitigating Turnover with Code Review Recommendation: Balancing Expertise, Workload, and Knowledge Distribution," ICSE 2020.

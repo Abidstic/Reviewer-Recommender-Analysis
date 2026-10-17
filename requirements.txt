@@ -1,1 +1,5 @@
 ranx==0.3.19
+numpy
+scipy
+pandas
+python-dotenv

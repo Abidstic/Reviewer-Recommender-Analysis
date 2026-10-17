@@ -1,72 +1,99 @@
-from typing import Dict
+import bisect
+from collections import defaultdict
+from datetime import timedelta
+from functools import cached_property
+from typing import Dict, List, Tuple
 
-from models import Developer, PullRequest
-from utils import Cache
+from models import PullRequest
 from utils.logger import info_logger
 from .base_simulator import BaseSimulator
+from .utils.knowledge import KnowledgeIndex
 
 
 class TurnoverRec(BaseSimulator):
-    def _calc_ReviewerKnows(self, developer: Developer, pr: PullRequest):
-        files_paths = [
-            _.filepath for _ in self._manager.review_files_list if
-            _.filepath in pr.file_paths and _.reviewer_username == developer.username and pr.date > _.date
-        ]
+    WINDOW_DAYS = 365
 
-        if len(files_paths) == 0:
-            return 0
+    @cached_property
+    def knowledge(self) -> KnowledgeIndex:
+        return KnowledgeIndex(self._manager)
 
-        for filepath in pr.file_paths:
-            if filepath not in self._manager.contributions.keys():
+    @cached_property
+    def _events(self) -> Tuple[List[object], List[str]]:
+        """Project activity as (timestamp, developer), sorted by time.
+
+        One event per commit, plus one event per (reviewer, PR) at that
+        reviewer's first review on the PR (the PR author's own reviews excluded).
+        Bot activity is excluded (paper Sec. 3.1).
+        Returns parallel (timestamps, developers) lists for bisect slicing.
+        """
+        events: List[Tuple[object, str]] = []
+
+        for commit in self._manager.commits_list:
+            ts = self.parse_dt(commit.date)
+            if ts is not None and not self.is_bot(commit.username):
+                events.append((ts, commit.username))
+
+        first_review: Dict[Tuple[str, int], object] = {}
+        for review in self._manager.reviews_list:
+            ts = self.parse_dt(review.date)
+            if ts is None or self.is_bot(review.reviewer_username):
                 continue
+            pr = self._manager.pull_requests.get(review.pull_number)
+            if pr is None or review.reviewer_username == pr.developer_username:
+                continue
+            key = (review.reviewer_username, review.pull_number)
+            if key not in first_review or ts < first_review[key]:
+                first_review[key] = ts
+        for (reviewer, _pn), ts in first_review.items():
+            events.append((ts, reviewer))
 
-            all_file_contributions = self._manager.contributions[filepath]
-            if len([
-                _ for _ in all_file_contributions if
-                _.username == developer.username and pr.date > _.date and _.filename == filepath
-                # last condition is trivial
-            ]) > 0:
-                files_paths.append(filepath)
+        events.sort(key=lambda e: e[0])
+        timestamps = [e[0] for e in events]
+        developers = [e[1] for e in events]
+        return timestamps, developers
 
-        return len(set(files_paths)) / len(pr.file_paths)
+    def _retention_inputs(self, pr_dt):
+        """Per-developer (event count, distinct (year,month) set) in the window."""
+        timestamps, developers = self._events
+        window_start = pr_dt - timedelta(days=self.WINDOW_DAYS)
+        lo = bisect.bisect_left(timestamps, window_start)
+        hi = bisect.bisect_left(timestamps, pr_dt)
 
-    def _calc_learnRec(self, developer: Developer, pr: PullRequest):
-        # todo: check with article
-        return 1 - self._calc_ReviewerKnows(developer=developer, pr=pr)
+        counts: Dict[str, int] = defaultdict(int)
+        months: Dict[str, set] = defaultdict(set)
+        for i in range(lo, hi):
+            dev = developers[i]
+            ts = timestamps[i]
+            counts[dev] += 1
+            months[dev].add((ts.year, ts.month))
+        total = hi - lo
+        return counts, months, total
 
-    def _is_diff_under_year(self, f_date, e_date):
-        return self.calc_diff_date(f_date, e_date) <= 365
+    def _calc_scores(self, pr: PullRequest) -> Dict[str, float]:
+        pr_dt = self.parse_dt(pr.date)
+        scores: Dict[str, float] = {}
+        if pr_dt is None or not pr.file_paths:
+            return scores
 
-    def _calc_totalCommitReview(self, pr: PullRequest):
-        return len([
-            _ for _ in self._manager.reviews_list if self._is_diff_under_year(pr.date, _.date)
-        ]) + len([
-            _ for _ in self._manager.commits_list if self._is_diff_under_year(pr.date, _.date)
-        ])
+        candidates = set()
+        for path in pr.file_paths:
+            candidates |= self.knowledge.knowledgeable(path, pr_dt)
+        if not candidates:
+            return scores
 
-    def _calc_RetentionRec(self, pr: PullRequest):
-        # {[dev_username]: float}
-        retention: Dict[str, float] = {}
-        totalCommitReviews = self._calc_totalCommitReview(pr=pr)
+        counts, months, total = self._retention_inputs(pr_dt)
+        n_files = len(pr.file_paths)
 
-        for developer in self._manager.developers_list:
-            past_year_reviews = [
-                _ for _ in self._manager.reviews_list
-                if self._is_diff_under_year(pr.date, _.date) and _.reviewer_username == developer.username
-            ]
-            past_year_commits = [
-                _ for _ in self._manager.commits_list
-                if self._is_diff_under_year(pr.date, _.date) and _.username == developer.username
-            ]
-            contribution = len(past_year_reviews) + len(past_year_commits) / totalCommitReviews
-            past_year_active_months = {
-                *[self.get_date_month(_.date) for _ in past_year_reviews],
-                *[self.get_date_month(_.date) for _ in past_year_commits],
-            }
-            consistency = len(past_year_active_months) / 12
-            retention[developer.username] = contribution * consistency
+        for dev in candidates:
+            known = self.knowledge.files_known_by(dev, pr.file_paths, pr_dt)
+            if not known:
+                continue
+            learn = 1 - (len(known) / n_files)
+            contribution = (counts[dev] / total) if total else 0.0
+            consistency = min(len(months[dev]), 12) / 12
+            scores[dev] = learn * consistency * contribution
 
-        return retention
+        return scores
 
     def simulate(self):
         info_logger.info("Simulating TurnoverRec...")
@@ -74,21 +101,13 @@ class TurnoverRec(BaseSimulator):
             info_logger.info("TurnoverRec simulation loaded from cache")
             return self.cached_result
 
-        # {[pr_number]: { [dev_username]: score }}
         result: Dict[int, Dict[str, float]] = {}
-
-        pr_len = len(self._manager.pull_requests_list)
-        for index, pr in enumerate(self._manager.pull_requests_list):
+        pr_len = len(self._target_prs)
+        for index, pr in enumerate(self._target_prs):
             info_logger.info(f'Calculating candidates: {index + 1}/{pr_len}')
-            result[pr.number] = {}
-            retentionRec = self._calc_RetentionRec(pr=pr)
-            for developer in self._manager.developers_list:
-                # TurnoverRec
-                result[pr.number][developer.username] = self._calc_learnRec(
-                    developer=developer,
-                    pr=pr
-                ) * retentionRec[developer.username]
+            scores = self._calc_scores(pr)
+            result[pr.number] = self.finalize_candidates(scores, pr)
 
-        Cache.store(self._cache_filename, result, chunk=True)
+        self._store_result(result)
         info_logger.info("TurnoverRec simulation finished")
         return result

@@ -6,7 +6,7 @@ authors:
 title: 'Reviewer Recommender Analysis: A GitHub Reviewer Recommendation System with Advanced Evaluation'
 version: 3.0.0
 date-released: 2026-10-17
-doi: 10.5281/zenodo.20777989
+doi: 10.5281/zenodo.23440250
 url: 'https://github.com/Abidstic/Reviewer-Recommender-Analysis'
 repository-code: 'https://github.com/Abidstic/Reviewer-Recommender-Analysis'
 abstract: 'A GitHub reviewer recommendation system implementing four published algorithms (RevFinder, cHRev, TurnoverRec, and Sofia) faithful to their original papers, featuring an interactive interface, advanced evaluation metrics (Precision@K, MRR, MAP, DCG), debugging tools, and thesis-ready output formats.'

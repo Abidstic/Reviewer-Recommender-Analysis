@@ -3,6 +3,7 @@ from ranx import compare, Qrels, Run
 
 from algorithms import BaseSimulator
 from models import Manager
+from utils.bots import is_bot
 
 
 class Evaluation:
@@ -32,6 +33,8 @@ class Evaluation:
                 _.reviewer_username: 1
                 for _ in self._manager.reviews_list
                 if _.pull_number == pr.number
+                and _.reviewer_username != pr.developer_username
+                and not is_bot(_.reviewer_username)
             }
             if mapping:
                 data[str(pr.number)] = mapping

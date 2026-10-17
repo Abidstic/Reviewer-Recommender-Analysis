@@ -257,6 +257,36 @@ This reviewer recommender system provides:
 
 This system is designed for researchers, students, and practitioners who need reliable, measurable, and comparable reviewer recommendation algorithms with detailed evaluation capabilities.
 
+## Algorithm Fidelity and Documented Deviations
+
+Each algorithm follows its original paper. The implementation makes a few
+deliberate, documented choices that a thesis should disclose:
+
+- **cHRev** uses the original recency term `1/gap` (calendar days, `gap = 0 → 1`),
+  not Mirsaeedi & Rigby's re-implementation `1/(gap + 1)`. Expertise is computed
+  at the file level and falls back to the containing package, then the top-level
+  system, when no reviewer has commented at the finer level.
+- **RevFinder** fixes `LCSuff`: the longest common suffix is compared from the
+  *end* of both paths. The authors' released script compared components by index
+  from the front, which is wrong for paths of different depth. The four
+  techniques are fused with Borda count giving `M − rank + 1` points per list, and
+  a candidate absent from a list scores `0` (not `−∞`).
+- **Knowledge model** (TurnoverRec, Sofia): a developer *knows* a file once they
+  have committed to it or reviewed a PR containing it; commits/PRs touching ≥ 100
+  files ("mega" changes) are ignored.
+- **Sofia** routes a review to TurnoverRec when any file under review has ≤ 2
+  knowledgeable developers, otherwise to cHRev (paper Eq. 10, whose two cases are
+  swapped as printed; `d = 2`). When TurnoverRec yields no candidate for an
+  at-risk PR, we fall back to cHRev — this fallback is our own decision.
+- **Shared rules**: all algorithms use only events strictly before the target PR,
+  exclude the PR author and bot accounts from both recommendations and ground
+  truth, and break score ties deterministically.
+
+Known limitations (not addressed): cHRev uses inline comments only; PR file lists
+are the final set, not the first patch set; there is no merged-PR filter; commits
+with no GitHub login fall back to email addresses; and the ICSE 2020 ΔExpertise /
+ΔCoreWorkload / ΔFaR turnover simulation is not implemented.
+
 ## Citation
 
 If you use this system in your research, please cite:

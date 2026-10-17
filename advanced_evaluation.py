@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, List, Tuple
 from models import Manager
+from utils.bots import is_bot
 
 class AdvancedEvaluation:
     """
@@ -16,16 +17,18 @@ class AdvancedEvaluation:
         self.ground_truth = self._build_ground_truth()
         
     def _build_ground_truth(self) -> Dict[int, set]:
-        """Build ground truth from actual reviews"""
+        """Build ground truth from actual reviews."""
         ground_truth = {}
         for pr in self.manager.pull_requests_list:
-            reviewers = [
+            reviewers = {
                 review.reviewer_username
                 for review in self.manager.reviews_list
                 if review.pull_number == pr.number
-            ]
+                and review.reviewer_username != pr.developer_username
+                and not is_bot(review.reviewer_username)
+            }
             if reviewers:
-                ground_truth[pr.number] = set(reviewers)
+                ground_truth[pr.number] = reviewers
         return ground_truth
     
     def evaluate_algorithms(self, algorithm_results: Dict[str, Dict]) -> Dict[str, Any]:
@@ -149,15 +152,10 @@ class AdvancedEvaluation:
         ap_at_k = {k: [] for k in k_values}
         
         for pr_num, actual_reviewers in self.ground_truth.items():
-            if pr_num not in algo_result:
-                continue
-                
-            # Get ranked recommendations
-            sorted_recs = sorted(algo_result[pr_num].items(), key=lambda x: x[1], reverse=True)
-            
-            if not sorted_recs:
-                continue
-            
+            sorted_recs = sorted(
+                algo_result.get(pr_num, {}).items(), key=lambda x: x[1], reverse=True
+            )
+
             # ==========================
             # TRUE PRECISION AND RECALL
             # ==========================

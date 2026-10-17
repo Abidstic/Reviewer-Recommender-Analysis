@@ -4,8 +4,8 @@ authors:
     - family-names: 'Mahmud'
       given-names: 'Abid Al'
 title: 'Reviewer Recommender Analysis: A GitHub Reviewer Recommendation System with Advanced Evaluation'
-version: 2.0.0
-date-released: 2026-06-21
+version: 3.0.0
+date-released: 2026-10-17
 doi: 10.5281/zenodo.20777989
 url: 'https://github.com/Abidstic/Reviewer-Recommender-Analysis'
 repository-code: 'https://github.com/Abidstic/Reviewer-Recommender-Analysis'
